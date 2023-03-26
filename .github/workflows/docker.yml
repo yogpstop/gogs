@@ -61,8 +61,8 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
-            gogs/gogs:latest
-            ghcr.io/gogs/gogs:latest
+            yogpstop/gogs:latest
+            ghcr.io/yogpstop/gogs:latest
       - name: Send email on failure
         uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
@@ -111,7 +111,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ttl.sh/gogs/gogs-${{ env.SHA }}:1d
+            ttl.sh/yogpstop/gogs-${{ env.SHA }}:1d
 
   # Updates to the following section needs to be synced to all release branches within their lifecycles.
   buildx-release:
@@ -160,8 +160,8 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: |
-            gogs/gogs:${{ env.IMAGE_TAG }}
-            ghcr.io/gogs/gogs:${{ env.IMAGE_TAG }}
+            yogpstop/gogs:${{ env.IMAGE_TAG }}
+            ghcr.io/yogpstop/gogs:${{ env.IMAGE_TAG }}
       - name: Send email on failure
         uses: dawidd6/action-send-mail@v3
         if: ${{ failure() }}
