@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -61,6 +62,22 @@ var (
 		Action:      runHookPostReceive,
 	}
 )
+
+func execCustomHook(hook, customHooksPath string, stdin io.Reader, args []string) {
+	var hookCmd *exec.Cmd
+	if conf.IsWindowsRuntime() {
+		hookCmd = exec.Command("bash.exe", append([]string{"custom_hooks/" + hook}, args...)...)
+	} else {
+		hookCmd = exec.Command(customHooksPath, args...)
+	}
+	hookCmd.Dir = db.RepoPath(os.Getenv(db.ENV_REPO_OWNER_NAME), os.Getenv(db.ENV_REPO_NAME))
+	hookCmd.Stdout = os.Stdout
+	hookCmd.Stdin = stdin
+	hookCmd.Stderr = os.Stderr
+	if err := hookCmd.Run(); err != nil {
+		fail("Internal error", "Failed to execute custom %s hook: %v", hook, err)
+	}
+}
 
 func runHookPreReceive(c *cli.Context) error {
 	if os.Getenv("SSH_ORIGINAL_COMMAND") == "" {
@@ -135,22 +152,12 @@ func runHookPreReceive(c *cli.Context) error {
 	}
 
 	customHooksPath := filepath.Join(os.Getenv(db.ENV_REPO_CUSTOM_HOOKS_PATH), "pre-receive")
-	if !com.IsFile(customHooksPath) {
-		return nil
+	if com.IsFile(customHooksPath) {
+		execCustomHook("pre-receive", customHooksPath, bytes.NewBuffer(buf.Bytes()), c.Args())
 	}
-
-	var hookCmd *exec.Cmd
-	if conf.IsWindowsRuntime() {
-		hookCmd = exec.Command("bash.exe", "custom_hooks/pre-receive")
-	} else {
-		hookCmd = exec.Command(customHooksPath)
-	}
-	hookCmd.Dir = db.RepoPath(os.Getenv(db.ENV_REPO_OWNER_NAME), os.Getenv(db.ENV_REPO_NAME))
-	hookCmd.Stdout = os.Stdout
-	hookCmd.Stdin = buf
-	hookCmd.Stderr = os.Stderr
-	if err := hookCmd.Run(); err != nil {
-		fail("Internal error", "Failed to execute custom pre-receive hook: %v", err)
+	globalHooksPath := filepath.Join(conf.CustomDir(), "hooks", "pre-receive")
+	if com.IsFile(globalHooksPath) {
+		execCustomHook("pre-receive", globalHooksPath, bytes.NewBuffer(buf.Bytes()), c.Args())
 	}
 	return nil
 }
@@ -169,22 +176,12 @@ func runHookUpdate(c *cli.Context) error {
 	}
 
 	customHooksPath := filepath.Join(os.Getenv(db.ENV_REPO_CUSTOM_HOOKS_PATH), "update")
-	if !com.IsFile(customHooksPath) {
-		return nil
+	if com.IsFile(customHooksPath) {
+		execCustomHook("update", customHooksPath, nil, c.Args())
 	}
-
-	var hookCmd *exec.Cmd
-	if conf.IsWindowsRuntime() {
-		hookCmd = exec.Command("bash.exe", append([]string{"custom_hooks/update"}, args...)...)
-	} else {
-		hookCmd = exec.Command(customHooksPath, args...)
-	}
-	hookCmd.Dir = db.RepoPath(os.Getenv(db.ENV_REPO_OWNER_NAME), os.Getenv(db.ENV_REPO_NAME))
-	hookCmd.Stdout = os.Stdout
-	hookCmd.Stdin = os.Stdin
-	hookCmd.Stderr = os.Stderr
-	if err := hookCmd.Run(); err != nil {
-		fail("Internal error", "Failed to execute custom pre-receive hook: %v", err)
+	globalHooksPath := filepath.Join(conf.CustomDir(), "hooks", "update")
+	if com.IsFile(globalHooksPath) {
+		execCustomHook("update", globalHooksPath, nil, c.Args())
 	}
 	return nil
 }
@@ -253,22 +250,12 @@ func runHookPostReceive(c *cli.Context) error {
 	}
 
 	customHooksPath := filepath.Join(os.Getenv(db.ENV_REPO_CUSTOM_HOOKS_PATH), "post-receive")
-	if !com.IsFile(customHooksPath) {
-		return nil
+	if com.IsFile(customHooksPath) {
+		execCustomHook("post-receive", customHooksPath, bytes.NewBuffer(buf.Bytes()), c.Args())
 	}
-
-	var hookCmd *exec.Cmd
-	if conf.IsWindowsRuntime() {
-		hookCmd = exec.Command("bash.exe", "custom_hooks/post-receive")
-	} else {
-		hookCmd = exec.Command(customHooksPath)
-	}
-	hookCmd.Dir = db.RepoPath(os.Getenv(db.ENV_REPO_OWNER_NAME), os.Getenv(db.ENV_REPO_NAME))
-	hookCmd.Stdout = os.Stdout
-	hookCmd.Stdin = buf
-	hookCmd.Stderr = os.Stderr
-	if err := hookCmd.Run(); err != nil {
-		fail("Internal error", "Failed to execute custom post-receive hook: %v", err)
+	globalHooksPath := filepath.Join(conf.CustomDir(), "hooks", "post-receive")
+	if com.IsFile(globalHooksPath) {
+		execCustomHook("post-receive", globalHooksPath, bytes.NewBuffer(buf.Bytes()), c.Args())
 	}
 	return nil
 }
