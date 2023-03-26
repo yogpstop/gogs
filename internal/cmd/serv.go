@@ -191,23 +191,35 @@ func runServ(c *cli.Context) error {
 
 	// Allow anonymous (user is nil) clone for public repositories.
 	var user *db.User
+	var key *db.PublicKey
 
-	key, err := db.GetPublicKeyByID(com.StrTo(strings.TrimPrefix(c.Args()[0], "key-")).MustInt64())
-	if err != nil {
-		fail("Invalid key ID", "Invalid key ID '%s': %v", c.Args()[0], err)
+	if strings.HasPrefix(c.Args()[0], "key-") {
+		key, err = db.GetPublicKeyByID(com.StrTo(strings.TrimPrefix(c.Args()[0], "key-")).MustInt64())
+		if err != nil {
+			fail("Invalid key ID", "Invalid key ID '%s': %v", c.Args()[0], err)
+		}
+	} else if strings.HasPrefix(c.Args()[0], "user-") {
+		user, err = db.Users.GetByUsername(ctx, strings.TrimPrefix(c.Args()[0], "user-"))
+		if err != nil {
+			fail("Invalid user ID", "Invalid username '%s': %v", c.Args()[0], err)
+		}
+	} else {
+		fail("Invalid argument", "Invalid argument '%s': %v", c.Args()[0], err)
 	}
 
 	if requestMode == db.AccessModeWrite || repo.IsPrivate {
 		// Check deploy key or user key.
-		if key.IsDeployKey() {
+		if key != nil && key.IsDeployKey() {
 			if key.Mode < requestMode {
 				fail("Key permission denied", "Cannot push with deployment key: %d", key.ID)
 			}
 			checkDeployKey(key, repo)
 		} else {
-			user, err = db.Users.GetByKeyID(ctx, key.ID)
-			if err != nil {
-				fail("Internal error", "Failed to get user by key ID '%d': %v", key.ID, err)
+			if user == nil {
+				user, err = db.Users.GetByKeyID(ctx, key.ID)
+				if err != nil {
+					fail("Internal error", "Failed to get user by key ID '%d': %v", key.ID, err)
+				}
 			}
 
 			mode := db.Perms.AccessMode(ctx, user.ID, repo.ID,
@@ -231,13 +243,13 @@ func runServ(c *cli.Context) error {
 		// A deploy key doesn't represent a signed in user, so in a site with Auth.RequireSignInView enabled,
 		// we should give read access only in repositories where this deploy key is in use. In other cases,
 		// a server or system using an active deploy key can get read access to all repositories on a Gogs instance.
-		if key.IsDeployKey() && conf.Auth.RequireSigninView {
+		if key != nil && key.IsDeployKey() && conf.Auth.RequireSigninView {
 			checkDeployKey(key, repo)
 		}
 	}
 
 	// Update user key activity.
-	if key.ID > 0 {
+	if key != nil && key.ID > 0 {
 		key, err := db.GetPublicKeyByID(key.ID)
 		if err != nil {
 			fail("Internal error", "GetPublicKeyByID: %v", err)
