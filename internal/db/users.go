@@ -184,12 +184,30 @@ func (db *users) Authenticate(ctx context.Context, login, password string, login
 		authSourceID = user.LoginSource
 
 	} else {
+		if loginSourceID < 0 {
+			// Try to get default login source
+			loginSources, err := LoginSources.List(ctx, ListLoginSourceOptions{OnlyActivated: true})
+			if err != nil {
+				return nil, errors.Wrap(err, "list activated login sources")
+			}
+			for i := range loginSources {
+				if loginSources[i].IsDefault {
+					authSourceID = loginSources[i].ID
+					break
+				}
+			}
+		} else {
+			authSourceID = loginSourceID
+		}
+
 		// Non-local login source is always greater than 0.
-		if loginSourceID <= 0 {
+		if authSourceID <= 0 {
 			return nil, auth.ErrBadCredentials{Args: map[string]any{"login": login}}
 		}
 
-		authSourceID = loginSourceID
+		if err != nil {
+			user = nil
+		}
 	}
 
 	source, err := LoginSources.GetByID(ctx, authSourceID)
@@ -203,6 +221,12 @@ func (db *users) Authenticate(ctx context.Context, login, password string, login
 
 	extAccount, err := source.Provider.Authenticate(login, password)
 	if err != nil {
+		// Fallback to local user
+		if auth.IsErrBadCredentials(err) && user != nil && user.IsLocal() {
+			if userutil.ValidatePassword(user.Password, user.Salt, password) {
+				return user, nil
+			}
+		}
 		return nil, err
 	}
 

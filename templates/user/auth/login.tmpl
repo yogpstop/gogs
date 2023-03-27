@@ -17,7 +17,7 @@
 						<label for="password">{{.i18n.Tr "password"}}</label>
 						<input id="password" name="password" type="password" autocomplete="off" value="{{.password}}" required>
 					</div>
-					{{if .LoginSources}}
+					{{if and .LoginSources (gt (len .LoginSources) 1)}}
 						<div class="required inline field {{if .Err_LoginSource}}error{{end}}">
 							<label>{{.i18n.Tr "auth.auth_source"}}</label>
 							<div class="ui selection dropdown">
@@ -38,6 +38,8 @@
 								</div>
 							</div>
 						</div>
+					{{else if .LoginSources}}
+					  <input type="hidden" id="login_source" name="login_source" value="{{.login_source}}" required>
 					{{end}}
 					<div class="inline field">
 						<label></label>
