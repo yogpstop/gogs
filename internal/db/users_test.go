@@ -169,6 +169,24 @@ func usersAuthenticate(t *testing.T, db *users) {
 	})
 
 	t.Run("login source mismatch", func(t *testing.T) {
+		mockLoginSources := NewMockLoginSourcesStore()
+		mockLoginSources.GetByIDFunc.SetDefaultHook(func(ctx context.Context, id int64) (*LoginSource, error) {
+			mockProvider := NewMockProvider()
+			mockProvider.AuthenticateFunc.SetDefaultReturn(
+				&auth.ExternalAccount{
+					Name:  alice.Name,
+					Email: alice.Email,
+				},
+				nil,
+			)
+			s := &LoginSource{
+				IsActived: true,
+				Provider:  mockProvider,
+			}
+			return s, nil
+		})
+		setMockLoginSourcesStore(t, mockLoginSources)
+
 		_, err := db.Authenticate(ctx, alice.Email, password, 1)
 		gotErr := fmt.Sprintf("%v", err)
 		wantErr := ErrLoginSourceMismatch{args: map[string]any{"actual": 0, "expect": 1}}.Error()
@@ -179,7 +197,12 @@ func usersAuthenticate(t *testing.T, db *users) {
 		mockLoginSources := NewMockLoginSourcesStore()
 		mockLoginSources.GetByIDFunc.SetDefaultHook(func(ctx context.Context, id int64) (*LoginSource, error) {
 			mockProvider := NewMockProvider()
-			mockProvider.AuthenticateFunc.SetDefaultReturn(&auth.ExternalAccount{}, nil)
+			mockProvider.AuthenticateFunc.SetDefaultReturn(
+				&auth.ExternalAccount{
+					Name: "bob",
+				},
+				nil,
+			)
 			s := &LoginSource{
 				IsActived: true,
 				Provider:  mockProvider,
