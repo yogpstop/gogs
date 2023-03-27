@@ -169,16 +169,9 @@ func (db *users) Authenticate(ctx context.Context, login, password string, login
 	}
 
 	var authSourceID int64 // The login source ID will be used to authenticate the user
-	createNewUser := false // Whether to create a new user after successful authentication
 
 	// User found in the database
-	if err == nil {
-		// Note: This check is unnecessary but to reduce user confusion at login page
-		// and make it more consistent from user's perspective.
-		if loginSourceID >= 0 && user.LoginSource != loginSourceID {
-			return nil, ErrLoginSourceMismatch{args: errutil.Args{"expect": loginSourceID, "actual": user.LoginSource}}
-		}
-
+	if loginSourceID <= 0 && err == nil {
 		// Validate password hash fetched from database for local accounts.
 		if user.IsLocal() {
 			if userutil.ValidatePassword(user.Password, user.Salt, password) {
@@ -197,7 +190,6 @@ func (db *users) Authenticate(ctx context.Context, login, password string, login
 		}
 
 		authSourceID = loginSourceID
-		createNewUser = true
 	}
 
 	source, err := LoginSources.GetByID(ctx, authSourceID)
@@ -214,8 +206,18 @@ func (db *users) Authenticate(ctx context.Context, login, password string, login
 		return nil, err
 	}
 
-	if !createNewUser {
-		return user, nil
+	extUser := new(User)
+	err = db.WithContext(ctx).Where("lower_name = ?", strings.ToLower(extAccount.Name)).First(extUser).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, errors.Wrap(err, "get user")
+	} else if err == nil {
+		// Note: This check is unnecessary but to reduce user confusion at login page
+		// and make it more consistent from user's perspective.
+		if loginSourceID >= 0 && extUser.LoginSource != loginSourceID {
+			return nil, ErrLoginSourceMismatch{args: errutil.Args{"expect": loginSourceID, "actual": extUser.LoginSource}}
+		}
+
+		return extUser, nil
 	}
 
 	// Validate username make sure it satisfies requirement.
